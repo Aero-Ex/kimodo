@@ -4,9 +4,6 @@ project(motion_correction)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find Python
-find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-
 # Find or fetch pybind11
 find_package(pybind11 CONFIG QUIET)
 if(NOT pybind11_FOUND)
