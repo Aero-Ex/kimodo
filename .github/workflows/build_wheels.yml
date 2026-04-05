@@ -26,7 +26,7 @@ jobs:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-* cp314-*"
           CIBW_ARCHS_LINUX: x86_64
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
-          CIBW_BUILD_FRONTEND: "setuptools"
+          CIBW_BUILD_FRONTEND: "pip"
           CIBW_SKIP: "*-musllinux_*"
           CIBW_BEFORE_BUILD: "pip install cmake setuptools"
           CIBW_ENVIRONMENT: >
