@@ -113,8 +113,11 @@ class MemoryManager:
                 self.encoder.unload()
             
             release_system_memory()
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
             self.log_memory_usage("RAM Reclamation Complete")
 
     def get_free_vram(self) -> int:
@@ -136,8 +139,11 @@ class MemoryManager:
         if not self.offload_enabled or "cpu" in device:
             return
 
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
         release_system_memory()
 
         current_free = self.get_free_vram()
@@ -200,8 +206,11 @@ class MemoryManager:
             if hasattr(model, "device"):
                 model.device = device
 
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
             release_system_memory()
 
     def offload_model(self, name: str):
@@ -221,8 +230,11 @@ class MemoryManager:
                     model.device = "cpu"
                 
                 release_system_memory()
-                torch.cuda.empty_cache()
-                torch.cuda.ipc_collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.ipc_collect()
+                if torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
                 self.log_memory_usage(f"Offloaded '{name}'")
 
     def report_residency(self):

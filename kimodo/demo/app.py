@@ -224,8 +224,11 @@ class Demo:
                     s.last_prompt_embeddings = None
                     s.last_prompt_lengths = None
             
-            torch.cuda.ipc_collect()
-            torch.cuda.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
 
     def build_constraint_tracks(
         self, client: viser.ClientHandle, skeleton: SkeletonBase
@@ -652,8 +655,11 @@ class Demo:
             session.last_prompt_lengths = None
             
             gc.collect()
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
         finally:
             self._generation_lock.release()
 

@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """LLM2Vec encoder wrapper for Kimodo text conditioning."""
 
-import os
 import gc
+import platform
+import os
 import numpy as np
 import torch
 from torch import nn
@@ -22,8 +23,15 @@ class LLM2VecEncoder(nn.Module):
         super().__init__()
         self.torch_dtype = getattr(torch, dtype)
         self.llm_dim = llm_dim
-        # Update this path to where your model is actually located!
-        self.custom_dir = "D:\KIMODO-Meta3_llm2vec_NF4"
+        
+        custom_path = r"path_to_your_Llama_text-encoders"
+        if os.path.exists(custom_path):
+            self.custom_dir = custom_path
+        else:
+            root_path = os.path.abspath(os.path.join(__file__, os.pardir, os.pardir, os.pardir, os.pardir))
+            self.custom_dir = os.path.abspath(os.path.join(root_path, "models", "KIMODO-Meta3_llm2vec_NF4"))
+        
+        print(f"[LLM2VecEncoder] Initializing model from {self.custom_dir}...")
         print(f"[LLM2VecEncoder] Initialized (Waiting for first use to load weights)...")
         self.model = None
 
@@ -34,7 +42,6 @@ class LLM2VecEncoder(nn.Module):
                 print(f"[LLM2VecEncoder] Offloading 5.4GB model to System RAM...")
                 self.model.model.to("cpu")
                 gc.collect()
-                import platform
                 if platform.system() == "Linux":
                     try:
                         import ctypes
@@ -44,8 +51,12 @@ class LLM2VecEncoder(nn.Module):
                 elif platform.system() == "Windows":
                     from kimodo.demo.memory_manager import release_system_memory
                     release_system_memory()
-                torch.cuda.empty_cache()
-                torch.cuda.ipc_collect()
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.ipc_collect()
+                if torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
 
     def reload(self):
         """Move from System RAM to VRAM."""
@@ -63,11 +74,15 @@ class LLM2VecEncoder(nn.Module):
 
         curr_device = self.get_device()
         if curr_device.type != "cuda":
-            print(f"[LLM2VecEncoder] Moving weights to GPU (cuda:0)...")
-            self.model.model.to("cuda:0")
+            if torch.backends.mps.is_available():
+                print(f"[LLM2VecEncoder] Moving weights to GPU (mps)...")
+                self.model.model.to("mps")
+            else:
+                print(f"[LLM2VecEncoder] Moving weights to GPU (cuda:0)...")
+                self.model.model.to("cuda:0")
             
             gc.collect()
-            import platform
+            
             if platform.system() == "Linux":
                 try:
                     import ctypes
@@ -77,8 +92,12 @@ class LLM2VecEncoder(nn.Module):
             elif platform.system() == "Windows":
                 from kimodo.demo.memory_manager import release_system_memory
                 release_system_memory()
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
             
             manager.log_memory_usage("Encoder Transfer Complete (RAM Reclaimed)")
         else:
@@ -94,8 +113,6 @@ class LLM2VecEncoder(nn.Module):
 
     def delete(self):
         """Reclaim RAM without deleting from disk unless absolutely necessary."""
-        # We no longer delete the model by default to avoid slow reloads.
-        # Just unload to CPU instead.
         self.unload()
 
     def __call__(self, text: list[str] | str):

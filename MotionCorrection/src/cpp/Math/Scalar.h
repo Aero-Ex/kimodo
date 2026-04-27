@@ -12,6 +12,7 @@
 
 #include <math.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 //
 // Scalar related methods

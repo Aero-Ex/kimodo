@@ -36,6 +36,36 @@ if(NOT Eigen3_FOUND)
     FetchContent_MakeAvailable(Eigen)
 endif()
 
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+    # If building on an ARM (aarch64/arm64) macOS, fetch SSE2Neon automatically
+    # since SSE intrinsics may not be available and SSE2Neon provides mappings.
+    find_package(SSE2Neon CONFIG QUIET)
+    if(NOT SSE2Neon_FOUND)
+        message(STATUS "SSE2Neon not found; fetching from GitHub...")
+        include(FetchContent)
+        FetchContent_Declare(
+            SSE2Neon
+            GIT_REPOSITORY https://github.com/DLTcollab/sse2neon.git
+            GIT_TAG v1.9.1
+        )
+        FetchContent_MakeAvailable(SSE2Neon)
+    endif()
+
+    # Try to resolve the FetchContent checkout path if the variable isn't defined
+    if(NOT DEFINED SSE2Neon_SOURCE_DIR)
+        set(_possible "${CMAKE_BINARY_DIR}/_deps/sse2neon-src")
+        if(EXISTS "${_possible}")
+            set(SSE2Neon_SOURCE_DIR "${_possible}")
+            message(STATUS "Resolved SSE2Neon_SOURCE_DIR -> ${SSE2Neon_SOURCE_DIR}")
+        endif()
+    endif()
+
+    if(DEFINED SSE2Neon_SOURCE_DIR)
+        message(STATUS "Adding SSE2Neon include dir: ${SSE2Neon_SOURCE_DIR}")
+        include_directories(${SSE2Neon_SOURCE_DIR})
+    endif()
+endif()
+
 # Source files
 set(MATH_SOURCES
     src/cpp/Math/Matrix.cpp
@@ -76,7 +106,14 @@ if(MSVC)
 else()
     # GCC/Clang flags (also applies to MinGW on Windows)
     # Enable SSE4.1 and AVX instructions for SIMD operations
-    target_compile_options(motion_correction_cpp_base PRIVATE -Wall -Wextra -msse4.1 -mavx)
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+        target_compile_options(motion_correction_cpp_base PRIVATE -Wall -Wextra -msse4.1 -mavx)
+    elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+        add_definitions(-DFORCE_INLINE=inline)
+        if(DEFINED SSE2Neon_SOURCE_DIR)
+            target_include_directories(motion_correction_cpp_base PUBLIC ${SSE2Neon_SOURCE_DIR})
+        endif()
+    endif()
 endif()
 
 # Python bindings

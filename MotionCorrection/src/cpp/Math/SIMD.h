@@ -6,7 +6,30 @@
 #pragma once
 
 #include <stdint.h>
-#include <immintrin.h>
+
+// On Apple ARM (Apple Silicon) use sse2neon to map SSE intrinsics to NEON.
+#if defined(__APPLE__) && (defined(__aarch64__) || defined(__arm64__))
+    #include "sse2neon.h"
+#else
+    #include <immintrin.h>
+#endif
+
+#if defined(__APPLE__) && (defined(__aarch64__) || defined(__arm64__))
+#ifndef _mm_permutevar_ps
+static inline __m128 _mm_permutevar_ps(__m128 a, __m128i idx)
+{
+    float vals[4];
+    int32_t indices[4];
+    _mm_storeu_ps(vals, a);
+    _mm_storeu_si128((__m128i*)indices, idx);
+    float out0 = vals[indices[0] & 3];
+    float out1 = vals[indices[1] & 3];
+    float out2 = vals[indices[2] & 3];
+    float out3 = vals[indices[3] & 3];
+    return _mm_set_ps(out3, out2, out1, out0);
+}
+#endif
+#endif
 
 namespace SIMD
 {
