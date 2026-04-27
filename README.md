@@ -1,3 +1,239 @@
+# Installation Guide (with Custom Text Encoder)
+
+### 1. Environment Setup
+First, create a fresh Python virtual environment to keep dependencies clean, and activate it.
+
+```bash
+python -m venv venv
+source venv/bin/activate
+```
+
+### 2. Download the Custom Text Encoder
+Upgrade the Hugging Face Hub package and download the specific model snapshot directly to your local directory.
+
+```bash
+pip install --upgrade huggingface_hub
+
+# This will download the model to a folder named './KIMODO-Meta3_llm2vec_NF4'
+python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Aero-Ex/KIMODO-Meta3_llm2vec_NF4', local_dir='./KIMODO-Meta3_llm2vec_NF4')"
+```
+
+### 3. Clone and Install Repositories
+Next, grab the core Kimodo repository and its Viser dependency, then install them in editable mode.
+
+```bash
+git clone https://github.com/Aero-Ex/kimodo.git
+cd kimodo
+
+git clone https://github.com/nv-tlabs/kimodo-viser.git
+pip install -e kimodo-viser
+set SKIP_MOTION_CORRECTION_IN_SETUP=1 && pip install -e .
+```
+
+### 4. Troubleshooting: Motion Correction Build Failure
+since we are skipping the building process for motion_correction package you have to use following to install on your system based on the python version. 
+
+Grab the appropriate wheel for your OS and Python version from the [Aero-Ex/kimodo releases page](https://github.com/Aero-Ex/kimodo/releases/tag/v1.0.0). 
+
+For example, to install the Python 3.12 wheel for Windows, run:
+
+```bash
+pip install https://github.com/Aero-Ex/kimodo/releases/download/v1.0.0/motion_correction-1.0.0-cp312-cp312-win_amd64.whl
+```
+
+### 5. Install Additional Dependencies
+Now, install the required quantization and transformer libraries.
+
+```bash
+pip install bitsandbytes
+pip install -U transformers==5.1.0
+```
+
+### 6. Apply the Custom Text Encoder Override
+To force Kimodo to use your newly downloaded local model, you need to provide the path of downloaded text_encoder its default wrapper file. 
+
+Open the following file in your text editor:
+`kimodo/kimodo/model/llm2vec/llm2vec_wrapper.py` 
+> **Important:** Make sure to update the `custom_dir` variable on line 27 with the actual absolute path to the folder you downloaded in Step 2.
+
+```python
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+"""LLM2Vec encoder wrapper for Kimodo text conditioning."""
+
+import gc
+import platform
+import os
+import numpy as np
+import torch
+from torch import nn
+from .llm2vec import LLM2Vec
+
+class LLM2VecEncoder(nn.Module):
+    """LLM2Vec text embeddings."""
+
+    def __init__(
+        self,
+        base_model_name_or_path: str,
+        peft_model_name_or_path: str,
+        dtype: str,
+        llm_dim: int,
+    ) -> None:
+        super().__init__()
+        self.torch_dtype = getattr(torch, dtype)
+        self.llm_dim = llm_dim
+        
+        custom_path = r"path_to_your_Llama_text-encoders"
+        if os.path.exists(custom_path):
+            self.custom_dir = custom_path
+        else:
+            root_path = os.path.abspath(os.path.join(__file__, os.pardir, os.pardir, os.pardir, os.pardir))
+            self.custom_dir = os.path.abspath(os.path.join(root_path, "models", "KIMODO-Meta3_llm2vec_NF4"))
+        
+        print(f"[LLM2VecEncoder] Initializing model from {self.custom_dir}...")
+        print(f"[LLM2VecEncoder] Initialized (Waiting for first use to load weights)...")
+        self.model = None
+
+    def unload(self):
+        """Offload the model weights to System RAM (CPU) if currently on GPU."""
+        if self.model is not None:
+            if self.get_device().type == "cuda":
+                print(f"[LLM2VecEncoder] Offloading 5.4GB model to System RAM...")
+                self.model.model.to("cpu")
+                gc.collect()
+                if platform.system() == "Linux":
+                    try:
+                        import ctypes
+                        ctypes.CDLL("libc.so.6").malloc_trim(0)
+                    except Exception:
+                        pass
+                elif platform.system() == "Windows":
+                    from kimodo.demo.memory_manager import release_system_memory
+                    release_system_memory()
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.ipc_collect()
+                if torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
+
+    def reload(self):
+        """Move from System RAM to VRAM."""
+        if self.model is None:
+            print(f"[LLM2VecEncoder] Model was None. Reloading from disk (15s delay)...")
+            self.model = LLM2Vec.from_pretrained(
+                base_model_name_or_path=self.custom_dir,
+                peft_model_name_or_path=None,
+                torch_dtype=self.torch_dtype,
+                device_map="cpu"
+            )
+
+        from kimodo.demo.memory_manager import manager
+        manager.ensure_vram_capacity(5400 * 1024 * 1024, device="cuda:0", exclude_name="text_encoder")
+
+        curr_device = self.get_device()
+        if curr_device.type != "cuda":
+            if torch.backends.mps.is_available():
+                print(f"[LLM2VecEncoder] Moving weights to GPU (mps)...")
+                self.model.model.to("mps")
+            else:
+                print(f"[LLM2VecEncoder] Moving weights to GPU (cuda:0)...")
+                self.model.model.to("cuda:0")
+            
+            gc.collect()
+            
+            if platform.system() == "Linux":
+                try:
+                    import ctypes
+                    ctypes.CDLL("libc.so.6").malloc_trim(0)
+                except Exception:
+                    pass
+            elif platform.system() == "Windows":
+                from kimodo.demo.memory_manager import release_system_memory
+                release_system_memory()
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            
+            manager.log_memory_usage("Encoder Transfer Complete (RAM Reclaimed)")
+        else:
+            print(f"[LLM2VecEncoder] Model already on GPU ({curr_device})")
+
+    def get_device(self):
+        if self.model is None:
+            return torch.device("cpu")
+        for p in self.model.model.parameters():
+            if p.device.type != "meta":
+                return p.device
+        return torch.device("cpu")
+
+    def delete(self):
+        """Reclaim RAM without deleting from disk unless absolutely necessary."""
+        self.unload()
+
+    def __call__(self, text: list[str] | str):
+        self.reload() # Auto-reload if called
+        is_string = False
+        if isinstance(text, str):
+            text = [text]
+            is_string = True
+
+        results = []
+        for t in text:
+            with torch.no_grad():
+                emb = self.model.encode([t])
+                results.append(emb)
+
+        encoded_text = np.concatenate(results, axis=0)
+
+        assert len(encoded_text.shape)
+        assert self.llm_dim == encoded_text.shape[-1]
+
+        encoded_text = encoded_text[:, None]
+        lengths = np.ones(len(encoded_text), dtype=int).tolist()
+
+        if is_string:
+            encoded_text = encoded_text[0]
+            lengths = lengths[0]
+
+        encoded_text = torch.tensor(encoded_text).to(self.get_device())
+        return encoded_text, lengths
+
+```
+
+### 7. Install Node.js
+Before launching the UI,  users must ensure Node.js is installed. 
+
+**For the latest stable (LTS) version:**
+```powershell
+winget install -e --id OpenJS.NodeJS.LTS
+```
+
+**For the current version (latest features):**
+```powershell
+winget install -e --id OpenJS.NodeJS
+```
+
+**Verification:** After installation, restart your terminal and verify the versions:
+```powershell
+node -v
+npm -v
+npx -v
+```
+
+### 8. Launch the Demo
+Finally, launch the application.
+
+```bash
+python -m kimodo.demo # or run with --offload for less than 8gb vram hardware
+```
+
+
+
+
 <p align="center">
   <img src="./assets/banner.png" alt="Banner" width="100%">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-76B900.svg" alt="License"></a>
