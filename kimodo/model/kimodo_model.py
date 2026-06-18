@@ -140,6 +140,7 @@ class Kimodo(nn.Module):
         root_margin: float = 0.04,
         # progress bar
         progress_bar=tqdm,
+        seeds: Optional[list[int]] = None,
     ) -> torch.Tensor:
         device = self.device
 
@@ -163,6 +164,10 @@ class Kimodo(nn.Module):
         generated_motions = []
 
         for idx, (text, num_frame) in enumerate(zip(texts, num_frames)):
+            if seeds and idx < len(seeds) and seeds[idx] is not None:
+                torch.manual_seed(seeds[idx])
+                if torch.cuda.is_available():
+                    torch.cuda.manual_seed_all(seeds[idx])
             texts_bs = [text for _ in range(num_samples)]
 
             lengths = torch.tensor(
@@ -401,6 +406,7 @@ class Kimodo(nn.Module):
         root_margin: float = 0.04,
         # progress bar
         progress_bar=tqdm,
+        seeds: Optional[list[int]] = None,
     ) -> dict:
         """Generate motion from text prompts and optional kinematic constraints.
 
@@ -479,6 +485,7 @@ class Kimodo(nn.Module):
                 post_processing,
                 root_margin,
                 progress_bar,
+                seeds=seeds,
             )
 
         # Input checking
