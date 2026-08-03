@@ -101,7 +101,7 @@ class LLM2VecEncoder(nn.Module):
 
     def get_device(self):
         device = 'cpu'
-        if self.model is None or self.cpu_load:
+        if self.cpu_load:
             print(f"[LLM2VecEncoder] Model is currently on CPU. Using CPU for inference...")
             device = 'cpu'
         elif torch.backends.mps.is_available():
