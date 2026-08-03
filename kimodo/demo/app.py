@@ -73,6 +73,7 @@ class Demo:
         if resolved not in MODEL_NAMES:
             raise ValueError(f"Unknown model '{default_model_name}'. Expected one of: {MODEL_NAMES}")
         self.default_model_name = resolved
+        print(f"[Demo] Default model set to: {self.default_model_name}")
         self.ensure_examples_layout()
         self.load_model(self.default_model_name)
 

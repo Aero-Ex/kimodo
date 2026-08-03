@@ -23,6 +23,7 @@ class LLM2VecEncoder(nn.Module):
         super().__init__()
         self.torch_dtype = getattr(torch, dtype)
         self.llm_dim = llm_dim
+        self.cpu_load = True  # default to loading on CPU until first use
         
         custom_path = r"path_to_your_Llama_text-encoders"
         if os.path.exists(custom_path):
@@ -62,54 +63,54 @@ class LLM2VecEncoder(nn.Module):
         """Move from System RAM to VRAM."""
         if self.model is None:
             print(f"[LLM2VecEncoder] Model was None. Reloading from disk (15s delay)...")
+            self.curr_device = self.get_device()
             self.model = LLM2Vec.from_pretrained(
                 base_model_name_or_path=self.custom_dir,
                 peft_model_name_or_path=None,
                 torch_dtype=self.torch_dtype,
-                device_map="cpu"
+                device_map=self.curr_device
             )
 
         from kimodo.demo.memory_manager import manager
-        manager.ensure_vram_capacity(5400 * 1024 * 1024, device="cuda:0", exclude_name="text_encoder")
+        # CPU load Model - cuda:0
+        manager.ensure_vram_capacity(5400 * 1024 * 1024, device="cpu", exclude_name="text_encoder")
 
-        curr_device = self.get_device()
-        if curr_device.type != "cuda":
-            if torch.backends.mps.is_available():
-                print(f"[LLM2VecEncoder] Moving weights to GPU (mps)...")
-                self.model.model.to("mps")
-            else:
-                print(f"[LLM2VecEncoder] Moving weights to GPU (cuda:0)...")
-                self.model.model.to("cuda:0")
+        
             
-            gc.collect()
-            
-            if platform.system() == "Linux":
-                try:
-                    import ctypes
-                    ctypes.CDLL("libc.so.6").malloc_trim(0)
-                except Exception:
-                    pass
-            elif platform.system() == "Windows":
-                from kimodo.demo.memory_manager import release_system_memory
-                release_system_memory()
+        gc.collect()
+        
+        if platform.system() == "Linux":
+            try:
+                import ctypes
+                ctypes.CDLL("libc.so.6").malloc_trim(0)
+            except Exception:
+                pass
+        elif platform.system() == "Windows":
+            from kimodo.demo.memory_manager import release_system_memory
+            release_system_memory()
 
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.ipc_collect()
-            if torch.backends.mps.is_available():
-                torch.mps.empty_cache()
-            
-            manager.log_memory_usage("Encoder Transfer Complete (RAM Reclaimed)")
-        else:
-            print(f"[LLM2VecEncoder] Model already on GPU ({curr_device})")
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        
+        manager.log_memory_usage("Encoder Transfer Complete (RAM Reclaimed)")
+        
+        print(f"[LLM2VecEncoder] Model already on ({self.curr_device})")
 
     def get_device(self):
-        if self.model is None:
-            return torch.device("cpu")
-        for p in self.model.model.parameters():
-            if p.device.type != "meta":
-                return p.device
-        return torch.device("cpu")
+        device = 'cpu'
+        if self.model is None or self.cpu_load:
+            print(f"[LLM2VecEncoder] Model is currently on CPU. Using CPU for inference...")
+            device = 'cpu'
+        elif torch.backends.mps.is_available():
+            print(f"[LLM2VecEncoder] Moving weights to GPU (mps)...")
+            device = 'mps'
+        elif torch.cuda.is_available():
+            print(f"[LLM2VecEncoder] Moving weights to GPU (cuda:0)...")
+            device = 'cuda:0'
+        return torch.device(device)
 
     def delete(self):
         """Reclaim RAM without deleting from disk unless absolutely necessary."""
@@ -123,8 +124,8 @@ class LLM2VecEncoder(nn.Module):
             is_string = True
 
         results = []
-        for t in text:
-            with torch.no_grad():
+        with torch.no_grad():
+            for t in text:
                 emb = self.model.encode([t])
                 results.append(emb)
 

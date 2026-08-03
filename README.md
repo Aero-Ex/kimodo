@@ -160,7 +160,7 @@ class LLM2VecEncoder(nn.Module):
             
             manager.log_memory_usage("Encoder Transfer Complete (RAM Reclaimed)")
         else:
-            print(f"[LLM2VecEncoder] Model already on GPU ({curr_device})")
+            print(f"[LLM2VecEncoder] Model already on ({curr_device})")
 
     def get_device(self):
         if self.model is None:

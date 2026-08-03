@@ -326,6 +326,8 @@ class LLM2Vec(nn.Module):
         Returns: embeddings of the sentences. Embeddings are detached and always on the CPU (see _encode implementation).
 
         """
+        
+        device = self.model.device
         if isinstance(sentences[0], str) and isinstance(sentences[-1], int):
             sentences = [sentences]
         # required for MEDI version of MTEB
@@ -353,7 +355,7 @@ class LLM2Vec(nn.Module):
 
         if torch.cuda.device_count() <= 1:
             # This branch also support mps devices
-            self.to(device)
+            # self.to(device)  # deleted because _encode already does this
             for start_index in trange(
                 0,
                 len(sentences),
