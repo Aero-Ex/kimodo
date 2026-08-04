@@ -327,7 +327,6 @@ class LLM2Vec(nn.Module):
 
         """
         
-        device = self.model.device
         if isinstance(sentences[0], str) and isinstance(sentences[-1], int):
             sentences = [sentences]
         # required for MEDI version of MTEB
@@ -335,7 +334,9 @@ class LLM2Vec(nn.Module):
             sentences = [[""] + [sentence] for sentence in sentences]
 
         if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = self.model.device
+        if isinstance(device, str):
+            device = torch.device(device)
 
         concatenated_input_texts = []
         for sentence in sentences:
@@ -353,7 +354,7 @@ class LLM2Vec(nn.Module):
         sentences_sorted = [sentences[idx] for idx in length_sorted_idx]
         all_embeddings = []
 
-        if torch.cuda.device_count() <= 1:
+        if torch.cuda.device_count() <= 1 or device.type != "cuda":  # single GPU or MPS device
             # This branch also support mps devices
             # self.to(device)  # deleted because _encode already does this
             for start_index in trange(

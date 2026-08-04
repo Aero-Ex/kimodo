@@ -23,8 +23,8 @@ class LLM2VecEncoder(nn.Module):
         super().__init__()
         self.torch_dtype = getattr(torch, dtype)
         self.llm_dim = llm_dim
-        self.cpu_load = True  # default to loading on CPU until first use
-        
+        self.cpu_load = False  # Use GPU when available; set True to force CPU loading
+                
         custom_path = r"path_to_your_Llama_text-encoders"
         if os.path.exists(custom_path):
             self.custom_dir = custom_path
@@ -38,45 +38,37 @@ class LLM2VecEncoder(nn.Module):
 
     def unload(self):
         """Offload the model weights to System RAM (CPU) if currently on GPU."""
-        if self.model is not None:
-            if self.get_device().type == "cuda":
-                print(f"[LLM2VecEncoder] Offloading 5.4GB model to System RAM...")
-                self.model.model.to("cpu")
-                gc.collect()
-                if platform.system() == "Linux":
-                    try:
-                        import ctypes
-                        ctypes.CDLL("libc.so.6").malloc_trim(0)
-                    except Exception:
-                        pass
-                elif platform.system() == "Windows":
-                    from kimodo.demo.memory_manager import release_system_memory
-                    release_system_memory()
+        if self.model is None:
+            return
 
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                    torch.cuda.ipc_collect()
-                if torch.backends.mps.is_available():
-                    torch.mps.empty_cache()
+        current_device = self.get_current_device()
+
+        if current_device is not None and current_device.type in {"cuda", "mps"}:
+            print(
+                f"[LLM2VecEncoder] Offloading model "
+                f"from {current_device} to CPU..."
+            )
+            self.model.model.to("cpu")
+            self.curr_device = torch.device("cpu")
+
+            gc.collect()
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
 
     def reload(self):
         """Move from System RAM to VRAM."""
-        if self.model is None:
-            print(f"[LLM2VecEncoder] Model was None. Reloading from disk (15s delay)...")
-            self.curr_device = self.get_device()
-            self.model = LLM2Vec.from_pretrained(
-                base_model_name_or_path=self.custom_dir,
-                peft_model_name_or_path=None,
-                torch_dtype=self.torch_dtype,
-                device_map=self.curr_device
-            )
-
-        from kimodo.demo.memory_manager import manager
-        # CPU load Model - cuda:0
-        manager.ensure_vram_capacity(5400 * 1024 * 1024, device="cpu", exclude_name="text_encoder")
-
+        target_device = self.get_target_device()
         
-            
+        from kimodo.demo.memory_manager import manager
+        # Ensure enough memory for the target device
+        if target_device.type == "cuda":
+            manager.ensure_vram_capacity(5400 * 1024 * 1024, device=str(target_device), exclude_name="text_encoder")
+        
         gc.collect()
         
         if platform.system() == "Linux":
@@ -95,11 +87,33 @@ class LLM2VecEncoder(nn.Module):
         if torch.backends.mps.is_available():
             torch.mps.empty_cache()
         
-        manager.log_memory_usage("Encoder Transfer Complete (RAM Reclaimed)")
+        manager.log_memory_usage("VRAM cleanup is complete")
+        
+        if self.model is None:
+            self.model = LLM2Vec.from_pretrained(
+                base_model_name_or_path=self.custom_dir,
+                peft_model_name_or_path=None,
+                torch_dtype=self.torch_dtype,
+                device_map=str(target_device),
+            )
+        else:
+            current_device = self.get_current_device()
+
+            if current_device != target_device:
+                print(
+                    f"[LLM2VecEncoder] Moving model "
+                    f"from {current_device} to {target_device}..."
+                )
+                self.model.model.to(target_device)
+
+        self.curr_device = self.get_current_device() or target_device
+
+            
+
         
         print(f"[LLM2VecEncoder] Model already on ({self.curr_device})")
 
-    def get_device(self):
+    def get_target_device(self):
         device = 'cpu'
         if self.cpu_load:
             print(f"[LLM2VecEncoder] Model is currently on CPU. Using CPU for inference...")
@@ -111,6 +125,19 @@ class LLM2VecEncoder(nn.Module):
             print(f"[LLM2VecEncoder] Moving weights to GPU (cuda:0)...")
             device = 'cuda:0'
         return torch.device(device)
+
+    def get_current_device(self):
+        if self.model is None:
+            return None
+
+        for parameter in self.model.model.parameters():
+            if parameter.device.type != "meta":
+                return parameter.device
+
+        return None
+    
+    def get_device(self):
+        return self.get_current_device() or self.get_target_device()
 
     def delete(self):
         """Reclaim RAM without deleting from disk unless absolutely necessary."""
@@ -140,6 +167,7 @@ class LLM2VecEncoder(nn.Module):
         if is_string:
             encoded_text = encoded_text[0]
             lengths = lengths[0]
-
-        encoded_text = torch.tensor(encoded_text).to(self.get_device())
+            
+        output_device = self.get_current_device() or self.get_target_device()
+        encoded_text = torch.tensor(encoded_text).to(output_device)
         return encoded_text, lengths
