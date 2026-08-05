@@ -39,7 +39,7 @@ pip install -e kimodo-viser
 set SKIP_MOTION_CORRECTION_IN_SETUP=1 && pip install -e .
 ```
 
-5. 下载预编译版motion_correction (python=1.12)
+5. 下载预编译版motion_correction
 ```bash
 pip install https://github.com/Aero-Ex/kimodo/releases/download/v1.0.0/motion_correction-1.0.0-cp312-cp312-win_amd64.whl
 ```
