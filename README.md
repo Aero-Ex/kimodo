@@ -7,6 +7,7 @@
 python -m pip install -U uv  # venv无法指定python版本...
 uv venv venv --python 3.12
 .\venv\Scripts\activate
+python -m ensurepip --upgrade --default-pip
 ```
 
 2. 下载pytorch  
@@ -22,7 +23,7 @@ nvidia-smi
 
 3. 拉取文本编码器模型
 ```cmd
-pip install --upgrade huggingface_hub
+python -m pip install --upgrade huggingface_hub
 
 # This will download the model to a folder named './KIMODO-Meta3_llm2vec_NF4'
 python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Aero-Ex/KIMODO-Meta3_llm2vec_NF4', local_dir='./KIMODO-Meta3_llm2vec_NF4')"
@@ -49,14 +50,13 @@ pip install https://github.com/Aero-Ex/kimodo/releases/download/v1.0.0/motion_co
 ```bash
 pip install bitsandbytes
 pip install -U transformers==5.1.0
+pip install dotenv
 ```
 
 7. 修改配置文件
-`kimodo/kimodo/model/llm2vec/llm2vec_wrapper.py` 
-
 
 ```python
-cp .env.example .env
+copy /Y ".venv.example" ".env"
 # 修改.env文件里的参数和地址
 ```
 
