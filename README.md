@@ -3,15 +3,15 @@
 ### 1. Environment Setup
 First, create a fresh Python virtual environment to keep dependencies clean, and activate it.
 
-```bash
+```windows-pwsh
 python -m venv venv
-source venv/bin/activate
+.\venv\Scripts\activate
 ```
 
 ### 2. Download the Custom Text Encoder
 Upgrade the Hugging Face Hub package and download the specific model snapshot directly to your local directory.
 
-```bash
+```pwsh
 pip install --upgrade huggingface_hub
 
 # This will download the model to a folder named './KIMODO-Meta3_llm2vec_NF4'
@@ -21,13 +21,13 @@ python -c "from huggingface_hub import snapshot_download; snapshot_download(repo
 ### 3. Clone and Install Repositories
 Next, grab the core Kimodo repository and its Viser dependency, then install them in editable mode.
 
-```bash
+```pwsh
 git clone https://github.com/Aero-Ex/kimodo.git
 cd kimodo
 
 git clone https://github.com/nv-tlabs/kimodo-viser.git
 pip install -e kimodo-viser
-set SKIP_MOTION_CORRECTION_IN_SETUP=1 && pip install -e .
+$env:SKIP_MOTION_CORRECTION_IN_SETUP="1"; pip install -e .
 ```
 
 ### 4. Troubleshooting: Motion Correction Build Failure
