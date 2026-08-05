@@ -22,7 +22,7 @@ python -c "from huggingface_hub import snapshot_download; snapshot_download(repo
 Next, grab the core Kimodo repository and its Viser dependency, then install them in editable mode.
 
 ```pwsh
-git clone https://github.com/Aero-Ex/kimodo.git
+git clone https://github.com/Ayn1631/kimodo.git
 cd kimodo
 
 git clone https://github.com/nv-tlabs/kimodo-viser.git
