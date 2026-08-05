@@ -4,7 +4,8 @@
 
 1. 创建虚拟环境
 ```cmd
-python -3.12 -m venv venv
+python -m pip install -U uv  # venv无法指定python版本...
+uv venv venv --python 3.12
 .\venv\Scripts\activate
 ```
 
