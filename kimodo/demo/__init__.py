@@ -3,7 +3,8 @@
 
 # ruff: noqa: I001
 import argparse
-
+import dotenv
+import os
 from kimodo.model import DEFAULT_MODEL
 from kimodo.model.registry import resolve_model_name
 
@@ -11,6 +12,7 @@ from .app import Demo
 
 
 def main() -> None:
+    dotenv.load_dotenv()
     parser = argparse.ArgumentParser(description="Run the kimodo demo UI.")
     parser.add_argument(
         "--model",
@@ -22,6 +24,7 @@ def main() -> None:
         "--offload",
         action="store_true",
         help="Enable multi-tier memory offloading (Disk-RAM-VRAM) for low-memory GPUs.",
+        default=os.getenv("CPU_Load", "False").lower() in ("true", "1", "t"),
     )
     args = parser.parse_args()
 

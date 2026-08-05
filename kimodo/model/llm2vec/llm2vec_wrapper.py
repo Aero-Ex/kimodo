@@ -23,9 +23,10 @@ class LLM2VecEncoder(nn.Module):
         super().__init__()
         self.torch_dtype = getattr(torch, dtype)
         self.llm_dim = llm_dim
-        self.cpu_load = False  # Use GPU when available; set True to force CPU loading
+        self.cpu_load = os.getenv("CPU_Load", "False").lower() in ("true", "1", "t")  # Use GPU when available; set True to force CPU loading
                 
-        custom_path = r"path_to_your_Llama_text-encoders"
+        custom_path = os.getenv("LLM2Vec_dir", "")
+        
         if os.path.exists(custom_path):
             self.custom_dir = custom_path
         else:
