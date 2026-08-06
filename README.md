@@ -1,227 +1,438 @@
-# Kimodo Windows / Low-VRAM Compatibility Fork
+# Kimodo 安装
 
 > [!IMPORTANT]
-> 本仓库是 NVIDIA Kimodo 的**非官方衍生分支**，不隶属于 NVIDIA，也不代表 NVIDIA 官方发布、认可或支持。
+> 本仓库是 NVIDIA Kimodo 的**非官方衍生分支**，不隶属于 NVIDIA，也不代表 NVIDIA 官方发布、认可、担保或支持。
 >
-> 项目来源关系：
+> 项目来源：
 >
-> - 官方上游：[nv-tlabs/kimodo](https://github.com/nv-tlabs/kimodo)
-> - 基础分支：[Aero-Ex/kimodo](https://github.com/Aero-Ex/kimodo)
-> - 当前分支：[Ayn1631/kimodo](https://github.com/Ayn1631/kimodo)
+> - 官方上游：[`nv-tlabs/kimodo`](https://github.com/nv-tlabs/kimodo)
+> - 基础分支：[`Aero-Ex/kimodo`](https://github.com/Aero-Ex/kimodo)
+> - 当前分支：[`Ayn1631/kimodo`](https://github.com/Ayn1631/kimodo)
 
-本分支面向 Windows 与低显存设备，保留 Kimodo 原有的动作生成能力，并补充本地 NF4 LLM2Vec 文本编码器、CPU 文本编码、显存卸载和 Windows 客户端构建兼容。
+本分支主要用于补充 Windows、低显存、本地 NF4 LLM2Vec 文本编码器和 `kimodo-viser` 构建兼容性。
 
-## 本分支的主要修改
+---
 
-- 支持通过 `.env` 指定本地 LLM2Vec 文本编码器目录。
-- 支持将文本编码器强制加载到 CPU，以降低显存占用。
-- 改进 CUDA、MPS、CPU 和多 GPU 场景下的设备判断。
-- 改进文本编码器的加载、卸载、迁移和重新加载流程。
-- 改进低显存模式下的内存与显存清理。
-- 为 Windows 修复 `kimodo-viser` 构建时的 `npx.cmd` 解析问题。
-- 提供适用于 Windows CMD 的安装流程。
+## 使用说明
 
-## 与官方 Kimodo 的关系
+以下“主流程”保留原有步骤、命令、顺序和参数，不进行改写。
 
-Kimodo 是 NVIDIA 发布的可控人体与机器人运动扩散模型，可通过文本提示和运动学约束生成动作。
+补充内容仅包括：
 
-本仓库只维护 Windows、低显存和本地文本编码器相关的兼容改动。Kimodo 模型结构、官方模型权重、数据集、论文与品牌归其各自权利人所有。
+- 每一步的作用说明。
+- 安装后的验证方法。
+- 已遇到的常见错误与原因。
+- 不改变主流程的排查命令。
 
-## 环境要求
+本教程中的主流程以 **Windows CMD** 为准。
 
-推荐环境：
+---
 
-- Windows 10 或 Windows 11，64 位。
-- Python 3.12，预编译的 `motion_correction` wheel 仅适配 CPython 3.12 x64。
-- NVIDIA 显卡与正常工作的 NVIDIA 驱动。
-- Git。
-- 可访问 GitHub、Hugging Face 和 PyTorch 官方下载源的网络。
-- 低显存设备建议启用 CPU 文本编码和 `--offload`。
+## 步骤
 
-检查 NVIDIA 驱动：
+### 1. 创建虚拟环境
 
 ```cmd
+python -m pip install -U uv  # venv无法指定python版本...
+uv venv venv --python 3.12
+.\venv\Scripts\activate
+python -m ensurepip --upgrade --default-pip
+```
+
+#### 说明
+
+- `python -m pip install -U uv`：通过当前 Python 安装或升级 `uv`。
+- `uv venv venv --python 3.12`：创建名为 `venv` 的 Python 3.12 虚拟环境。
+- `.\venv\Scripts\activate`：在 Windows CMD 中激活虚拟环境。
+- `python -m ensurepip --upgrade --default-pip`：为虚拟环境安装并补齐 `pip`、`pip3` 和对应版本的 pip 启动入口。
+
+`python -m venv` 本身不能通过类似下面的参数指定 Python 版本：
+
+```cmd
+python -m venv venv -p python=3.12
+```
+
+因此这里使用 `uv` 创建指定 Python 3.12 的虚拟环境。
+
+#### 验证
+
+```cmd
+where python
+python --version
+python -m pip -V
+```
+
+预期：
+
+- `where python` 第一项指向 `venv\Scripts\python.exe`。
+- `python --version` 输出 `Python 3.12.x`。
+- `python -m pip -V` 的路径位于 `venv\Lib\site-packages`。
+
+#### 常见错误
+
+##### `python -3.12 -m venv venv`
+
+错误：
+
+```text
+Unknown option: -3
+```
+
+原因：`-3.12` 是 `py` 启动器的参数，不是 `python.exe` 的参数。
+
+##### `python -m venv venv -p python=3.12`
+
+错误：
+
+```text
+venv: error: unrecognized arguments: -p python=3.12
+```
+
+原因：标准库 `venv` 没有 `-p` 参数。
+
+##### `pip` 指向 Anaconda
+
+检查：
+
+```cmd
+where pip
+where python
+python -m pip -V
+```
+
+如果裸 `pip` 指向 Anaconda，但 `python -m pip -V` 指向当前 `venv`，安装时优先使用：
+
+```cmd
+python -m pip
+```
+
+它会强制使用当前 Python 对应的 pip。
+
+##### 虚拟环境只有 `pip3.exe`
+
+检查：
+
+```cmd
+dir venv\Scripts\pip*
+```
+
+若只有：
+
+```text
+pip3.exe
+pip3.12.exe
+```
+
+主流程中的以下命令会尝试补齐 `pip.exe`：
+
+```cmd
+python -m ensurepip --upgrade --default-pip
+```
+
+##### 同时显示 `(venv) (base)`
+
+说明 venv 与 Conda base 同时激活。检查实际解释器：
+
+```cmd
+where python
+python -c "import sys; print(sys.executable)"
+```
+
+第一项与 `sys.executable` 应指向当前 `venv`。
+
+---
+
+### 2. 下载pytorch
+
+```cmd
+# 登录pytorch [`https://pytorch.org/`] 选择下载合适的torch版本
+# 国内源不可用!!!
+# 需要魔法!
+# CUDA 12.x：驱动至少 525
+# CUDA 13.x：驱动至少 580
 nvidia-smi
 ```
 
-`nvidia-smi` 中的 `CUDA Version` 表示驱动支持的最高 CUDA 版本，不表示本机已经安装了同版本 CUDA Toolkit，也不要求 PyTorch 必须安装完全相同的 CUDA 构建。
+#### 说明
 
-## Windows CMD 安装
+`nvidia-smi` 用于检查：
 
-以下命令默认在 **CMD** 中执行。PowerShell 的环境变量与虚拟环境激活语法不同。
+- NVIDIA 显卡是否被驱动正常识别。
+- 当前显卡驱动版本。
+- 驱动支持的最高 CUDA 版本。
+- 显存占用和运行进程。
 
-### 1. 克隆仓库
+例如：
 
-```cmd
-git clone https://github.com/Ayn1631/kimodo.git
-cd kimodo
+```text
+Driver Version: 591.74
+CUDA Version: 13.1
 ```
 
-### 2. 创建 Python 3.12 虚拟环境
+这里的 `CUDA Version: 13.1` 表示驱动最高支持 CUDA 13.1，不表示已经安装 CUDA Toolkit 13.1，也不要求必须下载完全相同版本的 PyTorch。
+
+普通使用 PyTorch CUDA Wheel 时：
+
+- 必须有兼容的 NVIDIA 显卡驱动。
+- 通常不需要单独安装完整 CUDA Toolkit。
+- PyTorch CUDA Wheel 自带运行所需的 CUDA Runtime。
+- 只有编译 CUDA 扩展时通常才需要 `nvcc` 和 CUDA Toolkit。
+
+#### 验证 PyTorch
+
+安装完成后执行：
 
 ```cmd
-python -m pip install -U uv
-uv venv .venv --python 3.12 --seed
-call .venv\Scripts\activate.bat
-python -m pip install -U pip setuptools wheel
+python -c "import torch; print('Torch:',torch.__version__); print('CUDA:',torch.version.cuda); print('可用:',torch.cuda.is_available()); print('显卡:',torch.cuda.get_device_name(0) if torch.cuda.is_available() else '不可用')"
 ```
 
-确认当前解释器和 pip 都属于该虚拟环境：
+正常情况下：
+
+```text
+可用: True
+```
+
+并显示 NVIDIA 显卡名称。
+
+#### 常见错误
+
+##### `torchvision` 显示 `+cpu`
+
+例如：
+
+```text
+torchvision 0.21.0+cpu
+```
+
+表示安装的是 CPU 版本 torchvision。
+
+应确保 `torch`、`torchvision` 和 `torchaudio`：
+
+- 版本互相匹配。
+- 来自同一个 PyTorch CUDA 索引。
+- 都安装在当前虚拟环境中。
+
+##### `Requirement already satisfied` 指向 Anaconda
+
+例如：
+
+```text
+D:\Mypower\Anaconda3\Lib\site-packages
+```
+
+说明安装命令使用了其他环境的 pip。
+
+检查：
 
 ```cmd
 where python
 python -m pip -V
 ```
 
-输出路径应位于当前仓库的 `.venv` 目录中。
-
-### 3. 安装 CUDA 版 PyTorch
-
-请在 [PyTorch 官方安装选择器](https://pytorch.org/get-started/locally/) 中选择：
-
-- OS：Windows
-- Package：Pip
-- Language：Python
-- Compute Platform：与当前 NVIDIA 驱动兼容的 CUDA 版本
-
-然后使用页面生成的命令安装。
-
-示例，使用 PyTorch 2.6.0 与 CUDA 12.6：
+安装时使用当前环境的：
 
 ```cmd
-python -m pip install --no-cache-dir torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu126
+python -m pip
 ```
 
-验证：
+##### NumPy 依赖冲突
 
-```cmd
-python -c "import torch; print('Torch:', torch.__version__); print('CUDA Runtime:', torch.version.cuda); print('GPU available:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Unavailable')"
+例如：
+
+```text
+numpy 2.4.4 is incompatible
 ```
 
-### 4. 下载 NF4 LLM2Vec 文本编码器
+通常说明包被安装到了已有大量旧依赖的环境中，而不是干净的项目虚拟环境。
+
+先确认：
 
 ```cmd
-python -m pip install -U huggingface_hub
-python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Aero-Ex/KIMODO-Meta3_llm2vec_NF4', local_dir='./models/KIMODO-Meta3_llm2vec_NF4')"
+python -m pip -V
 ```
 
-下载后确认关键文件存在：
+路径必须位于当前 `venv`。
+
+##### 没有 `nvidia-smi`
+
+可能原因：
+
+- 没有 NVIDIA 显卡。
+- NVIDIA 驱动未安装。
+- 驱动安装损坏。
+- `nvidia-smi.exe` 未加入 PATH。
+
+检查显卡：
 
 ```cmd
-dir ".\models\KIMODO-Meta3_llm2vec_NF4\config.json"
-dir ".\models\KIMODO-Meta3_llm2vec_NF4\model.safetensors"
+powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object Name,DriverVersion,Status"
 ```
 
-如果本地目录不存在，Transformers 可能会把 Windows 路径误当成 Hugging Face 仓库 ID，并报 `HFValidationError`。
+---
 
-### 5. 安装 Windows 兼容版 kimodo-viser
+### 3. 拉取文本编码器模型
 
 ```cmd
+python -m pip install --upgrade huggingface_hub
+
+# This will download the model to a folder named './KIMODO-Meta3_llm2vec_NF4'
+python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Aero-Ex/KIMODO-Meta3_llm2vec_NF4', local_dir='./KIMODO-Meta3_llm2vec_NF4')"
+```
+
+#### 说明
+
+该模型是：
+
+```text
+Aero-Ex/KIMODO-Meta3_llm2vec_NF4
+```
+
+它是基于 Llama 3 8B Instruct 的 LLM2Vec NF4 文本编码器，用于：
+
+```text
+文本 → 4096 维语义向量 → Kimodo 动作条件
+```
+
+它不是普通对话模型，不能直接用于生成聊天回复。
+
+下载完成后，模型会位于当前目录下：
+
+```text
+KIMODO-Meta3_llm2vec_NF4
+```
+
+#### 验证
+
+```cmd
+dir ".\KIMODO-Meta3_llm2vec_NF4"
+dir ".\KIMODO-Meta3_llm2vec_NF4\config.json"
+dir ".\KIMODO-Meta3_llm2vec_NF4\model.safetensors"
+```
+
+也可以执行：
+
+```cmd
+python -c "from pathlib import Path; p=Path(r'.\KIMODO-Meta3_llm2vec_NF4'); print('目录:',p.is_dir()); print('config:',(p/'config.json').is_file()); print('权重:',(p/'model.safetensors').is_file())"
+```
+
+#### 常见错误
+
+##### 是否需要 Hugging Face 密钥
+
+该仓库公开时可以匿名下载，不需要密钥。
+
+若出现 `401`、`403` 或访问限制，再执行：
+
+```cmd
+hf auth login
+```
+
+##### 本地路径被识别为 Hugging Face Repo ID
+
+错误类似：
+
+```text
+HFValidationError: Repo id must use alphanumeric chars...
+```
+
+这通常不代表 Windows 路径格式本身有问题，而是程序检查本地路径时发现目录不存在，于是把该字符串继续当作 Hugging Face 仓库 ID。
+
+检查 `.env` 中的路径是否真实存在，并确认目录中有：
+
+```text
+config.json
+model.safetensors
+tokenizer.json
+```
+
+##### 显存不足
+
+NF4 模型仍可能需要约 5 GB 级别显存。4 GB 显卡建议让文本编码器使用 CPU，并在启动 Demo 时使用卸载模式。
+
+---
+
+### 4. 拉取仓库
+
+```cmd
+git clone https://github.com/Ayn1631/kimodo.git
+cd kimodo
+
 git clone https://github.com/nv-tlabs/kimodo-viser.git
 python -c "import shutil; shutil.copy2(r'replace\_client_autobuild.py', r'kimodo-viser\src\viser\_client_autobuild.py')"
-python -m pip install -e .\kimodo-viser
+pip install -e kimodo-viser
+set SKIP_MOTION_CORRECTION_IN_SETUP=1 && pip install -e .
 ```
 
-替换文件的主要作用是在 Windows 上显式调用 `npx.cmd`，而不是 Unix 风格的 `npx` 脚本。
+#### 说明
 
-### 6. 安装 Kimodo 主项目
+这一部分依次完成：
 
-先跳过源码编译版 MotionCorrection：
+1. 下载当前 Kimodo 分支。
+2. 进入 Kimodo 项目目录。
+3. 下载官方 `kimodo-viser`。
+4. 使用 `replace\_client_autobuild.py` 覆盖 `kimodo-viser` 中对应文件。
+5. 以 editable 模式安装 `kimodo-viser`。
+6. 跳过 MotionCorrection 源码构建并安装 Kimodo 主项目。
+
+替换 `_client_autobuild.py` 的原因是：
+
+- Windows 下实际可执行入口通常是 `npx.cmd`。
+- Unix 风格的 `npx` 文件不能被 Windows 直接作为原生可执行文件运行。
+- PowerShell 或 CMD 输入 `npx` 时会通过 PATH 和 PATHEXT 自动找到 `npx.cmd`，但 Python 使用明确路径时不会自动完成同样的解析。
+
+#### 验证
 
 ```cmd
-set SKIP_MOTION_CORRECTION_IN_SETUP=1 && python -m pip install -e .
+python -c "import kimodo; print(kimodo.__file__)"
+python -c "import viser; print(viser.__file__)"
 ```
 
-安装额外运行依赖：
+路径应指向当前项目目录或当前虚拟环境。
+
+#### 常见错误
+
+##### PowerShell 不支持 `&&`
+
+错误：
+
+```text
+标记“&&”不是此版本中的有效语句分隔符
+```
+
+主流程是 CMD 命令。若当前提示符以 `PS` 开头，说明正在使用 PowerShell。
+
+##### PowerShell 中 `copy /Y` 报错
+
+PowerShell 中的 `copy` 实际是 `Copy-Item` 别名，不支持 CMD 的 `/Y` 参数。
+
+本主流程中的复制已经通过 Python `shutil.copy2()` 完成，不需要改动。
+
+##### `cp` 不是内部或外部命令
+
+`cp` 是 Linux/macOS Shell 命令，不是 Windows CMD 命令。
+
+##### `../venv/Scripts/activate` 无法执行
+
+这是 Linux 风格路径和命令。Windows CMD 使用 `\`，并执行 Windows 激活脚本。
+
+##### 找不到 `npx`
+
+检查：
 
 ```cmd
-python -m pip install -U bitsandbytes python-dotenv
-python -m pip install -U transformers==5.1.0
+where npx
+where npm
+node -p "process.arch"
 ```
 
-### 7. 安装预编译 MotionCorrection
+Windows 环境下通常应找到：
 
-```cmd
-python -m pip install "https://github.com/Aero-Ex/kimodo/releases/download/v1.0.0/motion_correction-1.0.0-cp312-cp312-win_amd64.whl"
+```text
+npx.cmd
+npm.cmd
 ```
 
-该 wheel 需要：
-
-- CPython 3.12。
-- Windows x64。
-- 与当前环境兼容的 PyTorch。
-
-如果出现 `not a supported wheel on this platform`，先检查：
-
-```cmd
-python --version
-python -c "import sys, platform, struct; print(sys.executable); print(platform.machine()); print(struct.calcsize('P') * 8)"
-```
-
-### 8. 创建配置文件
-
-```cmd
-copy /Y ".env.example" ".env"
-```
-
-编辑 `.env`：
-
-```env
-CPU_Load=True
-LLM2Vec_dir=D:/绝对路径/kimodo/models/KIMODO-Meta3_llm2vec_NF4
-```
-
-建议在 Windows 路径中使用 `/`，或使用完整原始字符串语义对应的路径，避免反斜杠转义与复制错误。
-
-参数说明：
-
-- `CPU_Load=True`：将文本编码器加载到 CPU，显著降低显存占用，但文本编码会更慢。
-- `CPU_Load=False`：优先使用 MPS 或 CUDA。
-- `LLM2Vec_dir`：本地 NF4 LLM2Vec 模型目录，目录中必须存在 `config.json` 等模型文件。
-
-### 9. 启动 Demo
-
-普通启动：
-
-```cmd
-python -m kimodo.demo
-```
-
-低显存启动：
-
-```cmd
-python -m kimodo.demo --offload
-```
-
-## PowerShell 对照
-
-激活虚拟环境：
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-设置一次性环境变量并安装：
-
-```powershell
-$env:SKIP_MOTION_CORRECTION_IN_SETUP="1"; python -m pip install -e .
-```
-
-复制配置：
-
-```powershell
-Copy-Item ".env.example" ".env" -Force
-```
-
-## 常见问题
-
-### `pip` 安装到了 Anaconda 或其他环境
-
-不要裸用 `pip` 或 `pip3`，始终使用：
-
-```cmd
-python -m pip install 包名
-```
+##### `pip install -e kimodo-viser` 安装到错误环境
 
 检查：
 
@@ -231,102 +442,397 @@ where pip
 python -m pip -V
 ```
 
-真正决定安装位置的是 `python -m pip` 中的 `python`。
+如果裸 `pip` 指向其他环境，应先修复虚拟环境中的 pip 启动器。主流程保持不变。
 
-### 本地模型路径被当成 Hugging Face 仓库 ID
+##### MotionCorrection 安装时要求 CMake
 
-典型报错：
+主流程使用：
+
+```cmd
+set SKIP_MOTION_CORRECTION_IN_SETUP=1 && pip install -e .
+```
+
+因此安装 Kimodo 主项目时会跳过 MotionCorrection，之后通过预编译 wheel 单独安装。
+
+---
+
+### 5. 下载预编译版motion_correction
+
+```cmd
+pip install https://github.com/Aero-Ex/kimodo/releases/download/v1.0.0/motion_correction-1.0.0-cp312-cp312-win_amd64.whl
+```
+
+#### 说明
+
+Wheel 文件名：
 
 ```text
-HFValidationError: Repo id must use alphanumeric chars...
+motion_correction-1.0.0-cp312-cp312-win_amd64.whl
 ```
+
+含义：
+
+- `cp312`：CPython 3.12。
+- 第二个 `cp312`：CPython 3.12 ABI。
+- `win_amd64`：Windows 64 位平台。
+
+该预编译 wheel 不能安装到：
+
+- Python 3.11。
+- Python 3.13。
+- 32 位 Python。
+- Linux 容器。
+- macOS。
+
+#### 验证
+
+```cmd
+python -c "import motion_correction; print(motion_correction.__file__)"
+```
+
+#### 常见错误
+
+##### `not a supported wheel on this platform`
 
 检查：
 
 ```cmd
-python -c "from pathlib import Path; p=Path(r'D:\你的路径\KIMODO-Meta3_llm2vec_NF4'); print(p.is_dir()); print((p/'config.json').is_file())"
+python --version
+python -c "import sys,platform,struct; print(sys.executable); print(platform.machine()); print(struct.calcsize('P')*8)"
 ```
 
-两个结果都必须为 `True`。
-
-### `npx` 无法执行
-
-Windows 中 npm 通常提供的是：
+需要：
 
 ```text
-npx.cmd
+Python 3.12.x
+AMD64 / x86_64
+64
 ```
 
-而不是可直接执行的 Unix `npx` 脚本。本分支通过 `replace/_client_autobuild.py` 修复该问题。
+##### 从源码安装时提示 CMake
 
-### 显存不足
+错误：
 
-NF4 文本编码器仍可能占用约 5 GB 级别的显存。4 GB 显卡建议：
+```text
+RuntimeError: CMake must be installed to build this package
+```
+
+这是源码构建路径的错误。当前主流程使用预编译 wheel，不需要修改主流程为源码编译。
+
+##### 运行时提示未安装 MotionCorrection
+
+错误：
+
+```text
+Motion correction is required for this postprocessing path but the motion_correction package is not installed.
+```
+
+检查导入：
+
+```cmd
+python -c "import motion_correction; print(motion_correction.__file__)"
+```
+
+并确认安装 wheel 的 pip 属于当前虚拟环境。
+
+---
+
+### 6. 下载其余依赖
+
+```cmd
+pip install bitsandbytes
+pip install -U transformers==5.1.0
+pip install dotenv
+```
+
+#### 说明
+
+- `bitsandbytes`：用于加载 NF4 4-bit 量化模型。
+- `transformers==5.1.0`：提供模型、Tokenizer 和 Hugging Face 加载接口。
+- `dotenv`：用于读取 `.env` 配置。
+
+#### 验证
+
+```cmd
+python -c "import bitsandbytes; print(bitsandbytes.__version__)"
+python -c "import transformers; print(transformers.__version__)"
+python -c "import dotenv; print(dotenv.__file__)"
+```
+
+#### 常见错误
+
+##### bitsandbytes 无法识别 GPU
+
+先验证 PyTorch：
+
+```cmd
+python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available())"
+```
+
+如果 PyTorch 本身是 CPU 版，bitsandbytes 也无法正常使用 NVIDIA CUDA。
+
+##### 依赖冲突
+
+如果输出大量 NumPy、Pillow、protobuf 或 SciPy 冲突，检查安装位置：
+
+```cmd
+python -m pip -V
+```
+
+路径应属于当前 `venv`，不应指向 Anaconda base。
+
+##### pip 缓存权限错误
+
+错误类似：
+
+```text
+Permission denied: C:\Users\...\pip\cache\wheels\...
+```
+
+可先检查是否有其他 Python、pip、IDE 或杀毒软件正在占用缓存文件。
+
+排查时可使用：
+
+```cmd
+python -m pip cache dir
+python -m pip cache purge
+```
+
+---
+
+### 7. 修改配置文件
+
+```cmd
+copy /Y ".venv.example" ".env"
+# 修改.env文件里的参数和地址
+```
+
+#### 说明
+
+该命令将示例配置复制为运行时配置：
+
+```text
+.venv.example → .env
+```
+
+`.env` 中需要根据实际模型位置设置参数，例如：
 
 ```env
 CPU_Load=True
+LLM2Vec_dir=D:\Test\KIMODO-Meta3_llm2vec_NF4
 ```
 
-并使用：
+说明：
+
+- `CPU_Load=True`：在 CPU 上加载 LLM2Vec，减少显存占用。
+- `CPU_Load=False`：优先使用可用的 GPU 设备。
+- `LLM2Vec_dir`：本地 NF4 LLM2Vec 模型目录。
+
+#### 验证 `.env`
+
+```cmd
+type .env
+```
+
+验证 Python 是否能读取：
+
+```cmd
+python -c "from dotenv import load_dotenv; import os; load_dotenv(); print('CPU_Load=',os.getenv('CPU_Load')); print('LLM2Vec_dir=',os.getenv('LLM2Vec_dir'))"
+```
+
+验证模型路径：
+
+```cmd
+python -c "from dotenv import load_dotenv; from pathlib import Path; import os; load_dotenv(); p=Path(os.environ['LLM2Vec_dir']); print('目录:',p.is_dir()); print('config:',(p/'config.json').is_file())"
+```
+
+#### 常见错误
+
+##### 把配置写进 `.venv`
+
+`.venv` 或 `venv` 通常是虚拟环境目录，不是 `.env` 配置文件。
+
+正确配置文件名是：
+
+```text
+.env
+```
+
+##### `.env` 变量没有被读取
+
+只有代码调用 `load_dotenv()` 并通过 `os.getenv()` 或 `os.environ` 读取时，`.env` 才会生效。
+
+检查：
+
+```cmd
+python -c "from dotenv import load_dotenv; import os; load_dotenv(); print(os.getenv('LLM2Vec_dir'))"
+```
+
+##### 仍然读取默认模型目录
+
+如果日志仍显示：
+
+```text
+项目目录\models\KIMODO-Meta3_llm2vec_NF4
+```
+
+说明：
+
+- `.env` 没有加载。
+- 变量名与代码读取的变量名不一致。
+- 启动目录不是 `.env` 所在目录。
+- `.env` 中配置的路径不存在。
+- 代码仍使用默认值。
+
+##### `HFValidationError`
+
+如果模型路径不存在，Transformers 会把本地 Windows 路径误当作 Hugging Face Repo ID。
+
+必须确保：
+
+```cmd
+dir "%LLM2Vec_dir%\config.json"
+```
+
+能够找到文件。
+
+---
+
+### 9. 启动demo
+
+```cmd
+python -m kimodo.demo
+```
+
+#### 说明
+
+该命令会：
+
+1. 初始化 Kimodo Demo。
+2. 加载默认动作生成模型。
+3. 尝试连接文本编码器服务。
+4. 如果服务不可达，则回退到本地 LLM2Vec 文本编码器。
+5. 启动 Web Demo。
+
+#### 验证
+
+正常日志可能包含：
+
+```text
+Using device: cuda:0
+Model kimodo-soma-rp loaded successfully
+```
+
+若文本编码器服务未启动，可能出现：
+
+```text
+Text encoder service is unreachable, falling back to local LLM2Vec encoder.
+```
+
+这是回退提示，不一定是致命错误。
+
+#### 常见错误
+
+##### Triton 未安装
+
+提示：
+
+```text
+triton not found; flop counting will not work for triton kernels
+```
+
+该提示主要表示无法统计 Triton 内核 FLOP，通常不阻止模型运行。
+
+##### 文本编码器服务无法连接
+
+提示：
+
+```text
+Could not fetch config for http://127.0.0.1:9550/
+```
+
+程序会尝试回退到本地 LLM2Vec 编码器。只要本地模型目录配置正确，可以继续运行。
+
+##### 本地模型路径报 `HFValidationError`
+
+检查：
+
+```cmd
+python -c "from dotenv import load_dotenv; from pathlib import Path; import os; load_dotenv(); p=Path(os.environ['LLM2Vec_dir']); print(p); print(p.is_dir()); print((p/'config.json').is_file())"
+```
+
+路径与 `config.json` 都必须存在。
+
+##### 显存不足
+
+日志可能出现：
+
+```text
+VRAM tight
+Offloading others
+```
+
+RTX 3050 4 GB 运行 NF4 文本编码器时仍可能显存不足。
+
+可以使用：
 
 ```cmd
 python -m kimodo.demo --offload
 ```
 
-Docker 和虚拟环境只能隔离依赖，不能增加物理显存。
+这是一条额外的低显存启动测试命令，不替换原主流程中的：
 
-## 修改声明
+```cmd
+python -m kimodo.demo
+```
 
-本仓库相对上游的主要修改文件包括：
+同时可以在 `.env` 中使用：
 
-- `.gitignore`
-- `README.md`
-- `kimodo/demo/__init__.py`
-- `kimodo/demo/app.py`
-- `kimodo/model/llm2vec/llm2vec.py`
-- `kimodo/model/llm2vec/llm2vec_wrapper.py`
-- `replace/_client_autobuild.py`
-- `pyproject.toml`
+```env
+CPU_Load=True
+```
 
-被修改的上游源文件应保留原始版权与许可证声明，并包含醒目的修改说明。
+##### 内存不足
 
-## 许可证
+模型卸载到系统内存后，可能导致 RAM 占用明显上升。16 GB 内存环境应关闭浏览器大量标签、IDE、其他模型进程和不必要的后台程序。
 
-仓库代码沿用 Apache License 2.0。完整条款见 [`LICENSE`](LICENSE)。
+---
 
-Apache 2.0 允许使用、修改、分发和商业集成，但分发衍生版本时需要：
+## 许可证与来源
 
-- 向接收者提供 Apache 2.0 许可证。
-- 保留适用的版权、专利、商标与归属声明。
-- 在修改过的文件中醒目标明该文件已被修改。
-- 保留上游项目提供且仍适用的 `NOTICE` 内容，如果存在。
+本仓库中的代码沿用 [Apache License 2.0](LICENSE)。
 
-第三方代码归属与许可证见 [`ATTRIBUTIONS.MD`](ATTRIBUTIONS.MD)。
+本仓库是 NVIDIA Kimodo 的非官方衍生分支，基于 Aero-Ex 的相关修改继续开发。
+
+使用和分发本仓库代码时，应：
+
+- 保留 Apache License 2.0 许可证。
+- 保留适用的版权和归属声明。
+- 保留第三方许可证。
+- 在修改过的上游文件中醒目标明文件已修改。
+- 如果上游包含适用的 `NOTICE`，应继续保留。
+
+第三方归属信息见：
+
+```text
+ATTRIBUTIONS.MD
+```
 
 > [!WARNING]
-> 仓库代码的 Apache 2.0 许可证不自动覆盖模型权重、数据集、Meta Llama、Aero-Ex NF4 文本编码器、Kimodo 模型检查点或其他第三方资产。使用和再分发前必须分别检查各自许可条款。
+> 仓库代码的 Apache License 2.0 不自动适用于模型权重、数据集、Meta Llama、Aero-Ex NF4 文本编码器、Kimodo 模型检查点或其他第三方资产。使用与再分发前，应分别检查各资源的许可证。
 
 ## 商标与非官方声明
 
-Apache 2.0 不授予 NVIDIA、Kimodo 或其他权利人的商标使用权。
+Apache License 2.0 不授予 NVIDIA、Kimodo、Aero-Ex、McGill NLP 或其他权利人的商标使用权。
 
-本仓库使用项目名称仅用于说明兼容关系与来源，不表示 NVIDIA、Aero-Ex、McGill NLP 或任何其他上游作者对本分支进行认可、担保或支持。
+本仓库提及这些名称，仅用于说明来源、兼容关系和依赖关系，不表示任何上游组织或作者对本分支进行认可、担保或支持。
 
 ## 致谢
 
-感谢以下项目及其贡献者：
+感谢：
 
 - NVIDIA Kimodo。
 - Aero-Ex 的 Windows 与低显存适配工作。
 - McGill NLP 的 LLM2Vec。
-- NVIDIA kimodo-viser。
-- 仓库 `ATTRIBUTIONS.MD` 中列出的其他第三方项目。
-
-## 贡献
-
-提交改动时，请：
-
-1. 保留原始许可证与版权头。
-2. 对修改过的上游文件添加醒目的修改声明。
-3. 不要把代码许可证错误地描述为模型或数据许可证。
-4. 不要将本分支描述为 NVIDIA 官方实现或官方发行版。
+- NVIDIA `kimodo-viser`。
+- `ATTRIBUTIONS.MD` 中列出的其他第三方项目。
