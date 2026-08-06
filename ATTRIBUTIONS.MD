@@ -1,3 +1,14 @@
+# Project Lineage and Fork Modifications
+
+This repository is an unofficial derivative of NVIDIA's `nv-tlabs/kimodo`,
+based on `Aero-Ex/kimodo`, with additional Windows and low-VRAM compatibility
+changes by Ayn1631 in 2026.
+
+The existing third-party license texts and attribution notices below are
+retained from upstream and remain applicable.
+
+---
+
 LLM2Vec MIT License https://github.com/McGill-NLP/llm2vec Copyright (c) 2024 McGill NLP
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

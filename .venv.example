@@ -1,2 +1,0 @@
-CPU_Load = True  # 当为True时, 使用cpu加载文本编码器, 可以节约大量显存
-LLM2Vec_dir = '你的文本编码器实际存放位置'

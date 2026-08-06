@@ -35,6 +35,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#
+# Modified by Ayn1631 in 2026.
+# Changes: improve explicit device selection, CPU/MPS execution,
+# single-GPU encoding, and low-VRAM behavior.
 import json
 import logging
 import os

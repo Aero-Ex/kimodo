@@ -1,3 +1,9 @@
+# Derived from nv-tlabs/kimodo-viser/src/viser/_client_autobuild.py.
+# The upstream project is licensed under Apache License 2.0.
+#
+# Modified by Ayn1631 in 2026.
+# Changes: resolve the Windows npm launcher as npx.cmd.
+
 import argparse
 import hashlib
 import os

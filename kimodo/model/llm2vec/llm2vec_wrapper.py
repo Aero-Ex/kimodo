@@ -1,5 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+#
+# Modified by Ayn1631 in 2026.
+# Changes: add configurable local LLM2Vec paths, optional CPU loading,
+# device-aware reload/offload, and Windows memory cleanup.
 """LLM2Vec encoder wrapper for Kimodo text conditioning."""
 
 import gc

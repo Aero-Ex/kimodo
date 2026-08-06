@@ -1,3 +1,6 @@
+# Modified by Ayn1631 in 2026.
+# Changes: ignore local model, generated, Windows development, and editor files.
+
 # debugging files
 debug/
 SMPLX_NEUTRAL.npz
@@ -163,3 +166,6 @@ onelogger.err
 /helm-library
 
 .history/
+
+
+kimodo_compliance_bundle/

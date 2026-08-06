@@ -1,5 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+#
+# Modified by Ayn1631 in 2026.
+# Changes: load .env configuration and support low-VRAM startup defaults.
 
 # ruff: noqa: I001
 import argparse
